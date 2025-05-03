@@ -4,6 +4,7 @@ from ml_model import predictor
 from virustotal_api import VirusTotalAPI
 from models import PhishingURL, db
 import urllib.parse
+import os
 
 # Initialize VirusTotal API
 vt_api = VirusTotalAPI()
@@ -187,7 +188,24 @@ def register_routes(app):
     @app.route('/api/health', methods=['GET'])
     def health_check():
         """Health check endpoint"""
-        return jsonify({
+        health_status = {
             'status': 'up',
-            'ml_model_trained': predictor.is_trained
-        })
+            'ml_model_trained': predictor.is_trained,
+            'database_connected': False,
+            'virustotal_configured': bool(os.environ.get("VIRUSTOTAL_API_KEY"))
+        }
+        
+        # Check database connection
+        try:
+            db.session.execute('SELECT 1')
+            health_status['database_connected'] = True
+        except Exception as e:
+            logging.error(f"Database health check failed: {e}")
+            health_status['status'] = 'degraded'
+            health_status['database_error'] = str(e)
+        
+        # If database is not connected, return error status
+        if not health_status['database_connected']:
+            return jsonify(health_status), 503
+            
+        return jsonify(health_status)
