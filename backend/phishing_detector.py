@@ -188,24 +188,43 @@ def register_routes(app):
     @app.route('/api/health', methods=['GET'])
     def health_check():
         """Health check endpoint"""
-        health_status = {
-            'status': 'up',
-            'ml_model_trained': predictor.is_trained,
-            'database_connected': False,
-            'virustotal_configured': bool(os.environ.get("VIRUSTOTAL_API_KEY"))
-        }
-        
-        # Check database connection
         try:
-            db.session.execute('SELECT 1')
-            health_status['database_connected'] = True
-        except Exception as e:
-            logging.error(f"Database health check failed: {e}")
-            health_status['status'] = 'degraded'
-            health_status['database_error'] = str(e)
-        
-        # If database is not connected, return error status
-        if not health_status['database_connected']:
-            return jsonify(health_status), 503
+            health_status = {
+                'status': 'up',
+                'ml_model_trained': predictor.is_trained,
+                'database_connected': False,
+                'virustotal_configured': bool(os.environ.get("VIRUSTOTAL_API_KEY"))
+            }
             
-        return jsonify(health_status)
+            # Check database connection
+            try:
+                db.session.execute('SELECT 1')
+                health_status['database_connected'] = True
+            except Exception as e:
+                logging.error(f"Database health check failed: {e}")
+                health_status['status'] = 'degraded'
+                health_status['database_error'] = str(e)
+            
+            # If database is not connected, return error status
+            if not health_status['database_connected']:
+                response = jsonify(health_status)
+                response.headers.add('Access-Control-Allow-Origin', '*')
+                response.headers.add('Access-Control-Allow-Methods', 'GET')
+                response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+                return response, 503
+                
+            response = jsonify(health_status)
+            response.headers.add('Access-Control-Allow-Origin', '*')
+            response.headers.add('Access-Control-Allow-Methods', 'GET')
+            response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            return response
+        except Exception as e:
+            logging.error(f"Health check failed: {e}")
+            error_response = jsonify({
+                'status': 'error',
+                'error': str(e)
+            })
+            error_response.headers.add('Access-Control-Allow-Origin', '*')
+            error_response.headers.add('Access-Control-Allow-Methods', 'GET')
+            error_response.headers.add('Access-Control-Allow-Headers', 'Content-Type')
+            return error_response, 500
