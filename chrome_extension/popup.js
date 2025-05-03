@@ -2,7 +2,7 @@
 // For development, use localhost; for production, update to the deployed URL
 const API_BASE_URL = window.location.hostname === 'localhost' 
   ? 'http://localhost:5000/api'
-  : 'https://phishdetect-api.replit.app/api';
+  : 'https://web-production-0d15.up.railway.app/api';
 
 // DOM elements
 let currentUrl = '';
