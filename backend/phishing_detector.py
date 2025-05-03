@@ -3,6 +3,7 @@ from flask import request, jsonify
 from ml_model import predictor
 from virustotal_api import VirusTotalAPI
 from models import PhishingURL, db
+from sqlalchemy import text
 import urllib.parse
 import os
 
@@ -198,7 +199,7 @@ def register_routes(app):
             
             # Check database connection
             try:
-                db.session.execute('SELECT 1')
+                db.session.execute(text('SELECT 1'))
                 health_status['database_connected'] = True
             except Exception as e:
                 logging.error(f"Database health check failed: {e}")
