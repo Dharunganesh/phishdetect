@@ -1,0 +1,75 @@
+/* Main styles */
+body {
+  min-width: 350px;
+  max-width: 400px;
+  overflow-x: hidden;
+}
+
+/* Status indicator */
+.status-indicator {
+  width: 12px;
+  height: 12px;
+  border-radius: 50%;
+  display: inline-block;
+}
+
+.status-loading {
+  background-color: #f8f9fa;
+  animation: pulse 1.5s infinite ease-in-out;
+}
+
+.status-safe {
+  background-color: #198754;
+}
+
+.status-danger {
+  background-color: #dc3545;
+}
+
+.status-neutral {
+  background-color: #6c757d;
+}
+
+.status-error {
+  background-color: #fd7e14;
+}
+
+/* Animation */
+@keyframes pulse {
+  0% {
+    opacity: 0.3;
+  }
+  50% {
+    opacity: 1;
+  }
+  100% {
+    opacity: 0.3;
+  }
+}
+
+/* Recent phishing list */
+#recent-phishing-list li {
+  cursor: pointer;
+  transition: background-color 0.2s;
+}
+
+#recent-phishing-list li:hover {
+  background-color: rgba(255, 255, 255, 0.05);
+}
+
+/* Progress bar colors */
+.progress {
+  height: 0.5rem;
+  background-color: rgba(255, 255, 255, 0.1);
+}
+
+.progress-bar {
+  background-color: #dc3545;
+}
+
+/* Truncate long URLs */
+#current-url {
+  max-width: 330px;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
