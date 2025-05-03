@@ -103,18 +103,29 @@ logger.info(f"Using database URL: {masked_url}")
 app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "phishing_detector_secret")
 
-# Enable CORS for the Chrome extension
+# Enable CORS for the Chrome extension with proper method handling
 CORS(app, resources={
-    r"/api/*": {
+    r"/*": {  # Allow CORS for all routes
         "origins": ["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*", "https://*"],
         "methods": ["GET", "POST", "OPTIONS"],
-        "allow_headers": ["Content-Type", "Authorization", "Accept"],
-        "supports_credentials": True
+        "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
+        "expose_headers": ["Content-Type", "Authorization"],
+        "supports_credentials": True,
+        "max_age": 3600
     }
 })
 
 # Apply middleware for HTTPS support
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
+
+# Add OPTIONS method handler for all routes
+@app.after_request
+def after_request(response):
+    response.headers.add('Access-Control-Allow-Origin', '*')
+    response.headers.add('Access-Control-Allow-Headers', 'Content-Type,Authorization,Accept,Origin,X-Requested-With')
+    response.headers.add('Access-Control-Allow-Methods', 'GET,POST,OPTIONS')
+    response.headers.add('Access-Control-Allow-Credentials', 'true')
+    return response
 
 # Configure database
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
