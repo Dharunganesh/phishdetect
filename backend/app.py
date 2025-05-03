@@ -102,7 +102,14 @@ app = Flask(__name__)
 app.secret_key = os.environ.get("SESSION_SECRET", "phishing_detector_secret")
 
 # Enable CORS for the Chrome extension
-CORS(app)
+CORS(app, resources={
+    r"/api/*": {
+        "origins": ["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*"],
+        "methods": ["GET", "POST", "OPTIONS"],
+        "allow_headers": ["Content-Type", "Authorization", "Accept"],
+        "supports_credentials": True
+    }
+})
 
 # Apply middleware for HTTPS support
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
