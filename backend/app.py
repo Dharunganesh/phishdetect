@@ -8,6 +8,7 @@ from sqlalchemy.exc import SQLAlchemyError
 import psycopg2
 from urllib.parse import urlparse
 from extensions import db
+from datetime import datetime
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, 
@@ -104,7 +105,7 @@ app.secret_key = os.environ.get("SESSION_SECRET", "phishing_detector_secret")
 # Enable CORS for the Chrome extension
 CORS(app, resources={
     r"/api/*": {
-        "origins": ["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*"],
+        "origins": ["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*", "https://*"],
         "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept"],
         "supports_credentials": True
@@ -198,6 +199,11 @@ with app.app_context():
         
         # Register API routes
         register_routes(app)
+        
+        # Log all registered routes
+        logger.info("Registered routes:")
+        for rule in app.url_map.iter_rules():
+            logger.info(f"Route: {rule.rule} - Methods: {rule.methods}")
         
         logger.info("Application initialized successfully")
     except Exception as e:
