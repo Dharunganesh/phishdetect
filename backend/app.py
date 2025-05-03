@@ -14,6 +14,16 @@ logging.basicConfig(level=logging.DEBUG,
                    handlers=[logging.StreamHandler()])
 logger = logging.getLogger(__name__)
 
+# Debug environment variables
+logger.info("Checking environment variables...")
+logger.info(f"All environment variables: {dict(os.environ)}")
+logger.info(f"DATABASE_URL exists: {'DATABASE_URL' in os.environ}")
+if 'DATABASE_URL' in os.environ:
+    # Mask the database URL for security
+    db_url = os.environ['DATABASE_URL']
+    masked_url = db_url[:10] + '...' + db_url[-10:] if len(db_url) > 20 else '***'
+    logger.info(f"DATABASE_URL (masked): {masked_url}")
+
 class Base(DeclarativeBase):
     pass
 
@@ -34,7 +44,18 @@ database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     logger.error("DATABASE_URL environment variable is not set! Application will fail to start.")
     print("ERROR: DATABASE_URL environment variable is not set!")
-    sys.exit(1)  # Exit if no database URL is provided
+    # Try to get the database URL from Railway's environment
+    if 'RAILWAY_DATABASE_URL' in os.environ:
+        database_url = os.environ['RAILWAY_DATABASE_URL']
+        logger.info("Found RAILWAY_DATABASE_URL, using that instead")
+    else:
+        sys.exit(1)  # Exit if no database URL is provided
+
+# Log database configuration
+logger.info("Database configuration:")
+logger.info(f"SQLALCHEMY_DATABASE_URI: {database_url[:10]}...{database_url[-10:] if len(database_url) > 20 else '***'}")
+logger.info(f"SQLALCHEMY_TRACK_MODIFICATIONS: False")
+logger.info(f"SQLALCHEMY_ENGINE_OPTIONS: {app.config['SQLALCHEMY_ENGINE_OPTIONS']}")
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
