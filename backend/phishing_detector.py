@@ -10,6 +10,11 @@ import os
 # Initialize VirusTotal API
 vt_api = VirusTotalAPI()
 
+# Constants for phishing detection
+PHISHING_CONFIDENCE_THRESHOLD = 0.85  # Increased from default to reduce false positives
+VIRUSTOTAL_WEIGHT = 0.4  # Increased weight for VirusTotal results
+ML_WEIGHT = 0.6  # Decreased weight for ML model results
+
 def register_routes(app):
     """Register API routes with the Flask app"""
     
@@ -84,6 +89,11 @@ def register_routes(app):
         else:
             # Use ML model to check URL
             is_phishing, confidence, features = predictor.predict(url)
+            
+            # Apply stricter threshold for phishing classification
+            if confidence < PHISHING_CONFIDENCE_THRESHOLD:
+                is_phishing = False
+                logging.info(f"URL {url} confidence {confidence} below threshold {PHISHING_CONFIDENCE_THRESHOLD}, marking as safe")
         
         # For demo purposes: Make VirusTotal API optional with a timeout
         # If it takes too long, we'll continue with just the ML model result
@@ -120,13 +130,18 @@ def register_routes(app):
             # Adjust confidence based on VirusTotal results if available
             if vt_total > 0:
                 vt_confidence = vt_positives / vt_total
-                # Weighted average between ML and VirusTotal
-                confidence = (confidence * 0.7) + (vt_confidence * 0.3)
-                # Adjust phishing classification if VirusTotal strongly disagrees
-                if vt_confidence > 0.5 and not is_phishing:
+                # Weighted average between ML and VirusTotal with adjusted weights
+                confidence = (confidence * ML_WEIGHT) + (vt_confidence * VIRUSTOTAL_WEIGHT)
+                
+                # More conservative classification rules
+                if vt_confidence > 0.6 and not is_phishing:  # Increased threshold
                     is_phishing = True
-                elif vt_confidence < 0.1 and is_phishing and confidence < 0.8:
+                    confidence = max(confidence, 0.85)  # Ensure high confidence for VirusTotal positives
+                elif vt_confidence < 0.2 and is_phishing:  # Increased threshold
                     is_phishing = False
+                    confidence = min(confidence, 0.15)  # Ensure low confidence for VirusTotal negatives
+                
+                logging.info(f"URL {url} final confidence: {confidence}, is_phishing: {is_phishing}")
         
         # Store the result in database
         try:
