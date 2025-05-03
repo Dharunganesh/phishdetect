@@ -1,12 +1,12 @@
 import os
 import logging
 import sys
-
 from flask import Flask, request, jsonify
 from flask_sqlalchemy import SQLAlchemy
 from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
+from sqlalchemy.exc import SQLAlchemyError
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, 
@@ -34,13 +34,16 @@ database_url = os.environ.get("DATABASE_URL")
 if not database_url:
     logger.error("DATABASE_URL environment variable is not set! Application will fail to start.")
     print("ERROR: DATABASE_URL environment variable is not set!")
-    # Don't exit here to allow Railway's health checks to pass in some cases
+    sys.exit(1)  # Exit if no database URL is provided
 
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
     "pool_recycle": 300,
     "pool_pre_ping": True,
+    "pool_size": 5,
+    "max_overflow": 10,
+    "pool_timeout": 30
 }
 
 # Check for VirusTotal API key
@@ -50,6 +53,23 @@ if not os.environ.get("VIRUSTOTAL_API_KEY"):
 
 # Initialize the app with SQLAlchemy
 db.init_app(app)
+
+# Error handlers
+@app.errorhandler(SQLAlchemyError)
+def handle_db_error(error):
+    logger.error(f"Database error: {error}")
+    return jsonify({
+        'error': 'Database error occurred',
+        'status': 'error'
+    }), 503
+
+@app.errorhandler(Exception)
+def handle_generic_error(error):
+    logger.error(f"Unexpected error: {error}")
+    return jsonify({
+        'error': 'An unexpected error occurred',
+        'status': 'error'
+    }), 500
 
 # Basic route for the home page
 @app.route('/')
@@ -90,14 +110,20 @@ from phishing_detector import register_routes
 
 # Initialize database tables and register API routes
 with app.app_context():
-    # Import models so they're registered with SQLAlchemy
-    import models
-    
-    # Create all tables
-    db.create_all()
-    
-    # Register API routes
-    register_routes(app)
+    try:
+        # Import models so they're registered with SQLAlchemy
+        import models
+        
+        # Create all tables
+        db.create_all()
+        
+        # Register API routes
+        register_routes(app)
+        
+        logger.info("Application initialized successfully")
+    except Exception as e:
+        logger.error(f"Failed to initialize application: {e}")
+        sys.exit(1)
 
 if __name__ == '__main__':
     app.run(host='0.0.0.0', port=5000, debug=True)
