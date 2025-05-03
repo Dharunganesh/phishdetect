@@ -1,5 +1,5 @@
 from datetime import datetime
-from app import db
+from extensions import db
 
 class PhishingURL(db.Model):
     """Model for storing detected phishing URLs"""
