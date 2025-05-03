@@ -2,17 +2,39 @@ import os
 import logging
 import sys
 from flask import Flask, request, jsonify
-from flask_sqlalchemy import SQLAlchemy
-from sqlalchemy.orm import DeclarativeBase
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
+import psycopg2
+from urllib.parse import urlparse
+from extensions import db
 
 # Set up logging
 logging.basicConfig(level=logging.DEBUG, 
                    format='%(asctime)s [%(levelname)s] %(message)s',
                    handlers=[logging.StreamHandler()])
 logger = logging.getLogger(__name__)
+
+def test_db_connection(db_url):
+    """Test database connection and return connection details"""
+    try:
+        # Parse the database URL
+        parsed = urlparse(db_url)
+        logger.info(f"Testing connection to database at {parsed.hostname}:{parsed.port}")
+        
+        # Try to connect
+        conn = psycopg2.connect(db_url)
+        cursor = conn.cursor()
+        cursor.execute('SELECT version();')
+        version = cursor.fetchone()
+        cursor.close()
+        conn.close()
+        
+        logger.info(f"Successfully connected to database. Version: {version[0]}")
+        return True
+    except Exception as e:
+        logger.error(f"Database connection test failed: {str(e)}")
+        return False
 
 # Debug environment variables
 logger.info("Checking environment variables...")
@@ -37,36 +59,43 @@ for var in possible_db_vars:
 if not database_url:
     # Try to construct from individual components
     db_components = {
-        'user': os.environ.get('PGUSER'),
+        'user': os.environ.get('PGUSER', 'postgres'),
         'password': os.environ.get('PGPASSWORD'),
         'host': os.environ.get('PGHOST'),
         'port': os.environ.get('PGPORT', '5432'),
-        'database': os.environ.get('PGDATABASE')
+        'database': os.environ.get('PGDATABASE', 'railway')
     }
     
     logger.info(f"Database components found: {db_components}")
     
-    if all(db_components.values()):
+    # Check if we have the minimum required components
+    if db_components['host'] and db_components['password']:
         database_url = f"postgresql://{db_components['user']}:{db_components['password']}@{db_components['host']}:{db_components['port']}/{db_components['database']}"
         logger.info("Constructed DATABASE_URL from individual components")
     else:
-        logger.error("No database URL found in any environment variables")
-        logger.error("Please ensure you have a PostgreSQL database service linked to your application")
-        sys.exit(1)
+        # Try to get the database URL from Railway's internal DNS
+        if 'RAILWAY_PRIVATE_DOMAIN' in os.environ:
+            host = os.environ['RAILWAY_PRIVATE_DOMAIN'].replace('web.', 'postgres.')
+            database_url = f"postgresql://postgres:postgres@{host}:5432/railway"
+            logger.info("Constructed DATABASE_URL from Railway private domain")
+        else:
+            logger.error("No database URL found in any environment variables")
+            logger.error("Please ensure you have a PostgreSQL database service linked to your application")
+            sys.exit(1)
 
 # If the URL starts with postgres://, change it to postgresql://
 if database_url.startswith('postgres://'):
     database_url = database_url.replace('postgres://', 'postgresql://', 1)
     logger.info("Updated database URL protocol from postgres:// to postgresql://")
 
+# Test the database connection
+if not test_db_connection(database_url):
+    logger.error("Failed to connect to database. Please check your database configuration.")
+    sys.exit(1)
+
 # Log database configuration (masked for security)
 masked_url = database_url[:10] + '...' + database_url[-10:] if len(database_url) > 20 else '***'
 logger.info(f"Using database URL: {masked_url}")
-
-class Base(DeclarativeBase):
-    pass
-
-db = SQLAlchemy(model_class=Base)
 
 # Create the app
 app = Flask(__name__)
