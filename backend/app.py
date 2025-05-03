@@ -5,6 +5,7 @@ from flask import Flask, request, jsonify
 from werkzeug.middleware.proxy_fix import ProxyFix
 from flask_cors import CORS
 from sqlalchemy.exc import SQLAlchemyError
+from sqlalchemy import text
 import psycopg2
 from urllib.parse import urlparse
 from extensions import db
@@ -196,6 +197,14 @@ with app.app_context():
         
         # Create all tables
         db.create_all()
+        
+        # Test database connection using SQLAlchemy
+        try:
+            db.session.execute(text('SELECT 1'))
+            logger.info("Database connection test successful using SQLAlchemy")
+        except Exception as e:
+            logger.error(f"Database connection test failed using SQLAlchemy: {e}")
+            sys.exit(1)
         
         # Register API routes
         register_routes(app)
