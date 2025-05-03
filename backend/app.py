@@ -17,12 +17,51 @@ logger = logging.getLogger(__name__)
 # Debug environment variables
 logger.info("Checking environment variables...")
 logger.info(f"All environment variables: {dict(os.environ)}")
-logger.info(f"DATABASE_URL exists: {'DATABASE_URL' in os.environ}")
-if 'DATABASE_URL' in os.environ:
-    # Mask the database URL for security
-    db_url = os.environ['DATABASE_URL']
-    masked_url = db_url[:10] + '...' + db_url[-10:] if len(db_url) > 20 else '***'
-    logger.info(f"DATABASE_URL (masked): {masked_url}")
+
+# Try to find database URL in different possible locations
+database_url = None
+possible_db_vars = [
+    'DATABASE_URL',
+    'RAILWAY_DATABASE_URL',
+    'POSTGRES_URL',
+    'POSTGRESQL_URL',
+    'PGDATABASE_URL'
+]
+
+for var in possible_db_vars:
+    if var in os.environ:
+        database_url = os.environ[var]
+        logger.info(f"Found database URL in {var}")
+        break
+
+if not database_url:
+    # Try to construct from individual components
+    db_components = {
+        'user': os.environ.get('PGUSER'),
+        'password': os.environ.get('PGPASSWORD'),
+        'host': os.environ.get('PGHOST'),
+        'port': os.environ.get('PGPORT', '5432'),
+        'database': os.environ.get('PGDATABASE')
+    }
+    
+    logger.info(f"Database components found: {db_components}")
+    
+    if all(db_components.values()):
+        database_url = f"postgresql://{db_components['user']}:{db_components['password']}@{db_components['host']}:{db_components['port']}/{db_components['database']}"
+        logger.info("Constructed DATABASE_URL from individual components")
+    else:
+        logger.error("No database URL found in any environment variables")
+        logger.error("Please ensure you have a PostgreSQL database service linked to your application")
+        sys.exit(1)
+
+# If the URL starts with postgres://, change it to postgresql://
+if database_url.startswith('postgres://'):
+    database_url = database_url.replace('postgres://', 'postgresql://', 1)
+    logger.info("Updated database URL protocol from postgres:// to postgresql://")
+
+# Log database configuration (masked for security)
+masked_url = database_url[:10] + '...' + database_url[-10:] if len(database_url) > 20 else '***'
+logger.info(f"Using database URL: {masked_url}")
 
 class Base(DeclarativeBase):
     pass
@@ -39,24 +78,7 @@ CORS(app)
 # Apply middleware for HTTPS support
 app.wsgi_app = ProxyFix(app.wsgi_app, x_proto=1, x_host=1)
 
-# Configure the database connection to NeonDB
-database_url = os.environ.get("DATABASE_URL")
-if not database_url:
-    logger.error("DATABASE_URL environment variable is not set! Application will fail to start.")
-    print("ERROR: DATABASE_URL environment variable is not set!")
-    # Try to get the database URL from Railway's environment
-    if 'RAILWAY_DATABASE_URL' in os.environ:
-        database_url = os.environ['RAILWAY_DATABASE_URL']
-        logger.info("Found RAILWAY_DATABASE_URL, using that instead")
-    else:
-        sys.exit(1)  # Exit if no database URL is provided
-
-# Log database configuration
-logger.info("Database configuration:")
-logger.info(f"SQLALCHEMY_DATABASE_URI: {database_url[:10]}...{database_url[-10:] if len(database_url) > 20 else '***'}")
-logger.info(f"SQLALCHEMY_TRACK_MODIFICATIONS: False")
-logger.info(f"SQLALCHEMY_ENGINE_OPTIONS: {app.config['SQLALCHEMY_ENGINE_OPTIONS']}")
-
+# Configure database
 app.config["SQLALCHEMY_DATABASE_URI"] = database_url
 app.config["SQLALCHEMY_TRACK_MODIFICATIONS"] = False
 app.config["SQLALCHEMY_ENGINE_OPTIONS"] = {
