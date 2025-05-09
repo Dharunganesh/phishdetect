@@ -30,15 +30,23 @@ class VirusTotalAPI:
                 return None
                 
             # Wait for analysis to complete (with timeout)
-            timeout = 15  # seconds - reduced for faster response
+            timeout = 30  # seconds - increased for complex URLs
             start_time = time.time()
             analysis_result = None
             
             while time.time() - start_time < timeout:
                 analysis_result = self._get_analysis_result(analysis_id)
-                if analysis_result and analysis_result.get('status') == 'completed':
-                    break
-                time.sleep(1)  # Reduced wait time between checks
+                if analysis_result:
+                    status = analysis_result.get('status')
+                    if status == 'completed':
+                        break
+                    elif status in ['queued', 'in-progress']:
+                        time.sleep(2)  # Wait longer between checks
+                    else:
+                        logging.warning(f"Unexpected status: {status}")
+                        break
+                else:
+                    time.sleep(1)
             
             if not analysis_result or analysis_result.get('status') != 'completed':
                 logging.warning(f"VirusTotal analysis timed out for URL: {url}")
@@ -110,18 +118,13 @@ class VirusTotalAPI:
             attributes = data.get('attributes', {})
             stats = attributes.get('last_analysis_stats', {})
             
-            total = sum(stats.values()) if stats else 0
-            malicious = stats.get('malicious', 0) + stats.get('suspicious', 0)
-            
-            logging.info(f"VirusTotal results - Malicious: {malicious}, Total: {total}")
-            
             return {
                 'harmless': stats.get('harmless', 0),
-                'malicious': malicious,
+                'malicious': stats.get('malicious', 0),
                 'suspicious': stats.get('suspicious', 0),
                 'undetected': stats.get('undetected', 0),
                 'timeout': stats.get('timeout', 0),
-                'total': total,
+                'total': sum(stats.values()),
                 'scan_date': attributes.get('last_analysis_date'),
                 'reputation': attributes.get('reputation', 0),
                 'categories': attributes.get('categories', {})
