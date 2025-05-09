@@ -30,20 +30,26 @@ class VirusTotalAPI:
                 return None
                 
             # Wait for analysis to complete (with timeout)
-            timeout = 30  # seconds - increased for better completion rate
+            timeout = 45  # seconds - increased for better completion rate
             start_time = time.time()
             analysis_result = None
+            retry_count = 0
             
             while time.time() - start_time < timeout:
                 analysis_result = self._get_analysis_result(analysis_id)
                 if analysis_result:
-                    if analysis_result.get('status') == 'completed':
+                    status = analysis_result.get('status', '')
+                    if status == 'completed':
                         break
-                    logging.info(f"Analysis status: {analysis_result.get('status')}")
-                time.sleep(2)  # Increased wait time between checks to respect rate limits
+                    elif status == 'queued' and retry_count < 3:
+                        retry_count += 1
+                        time.sleep(5)  # Longer wait for queued status
+                        continue
+                    logging.info(f"Analysis status: {status}")
+                time.sleep(2)  # Increased wait time between checks
             
             if not analysis_result or analysis_result.get('status') != 'completed':
-                logging.warning(f"VirusTotal analysis timed out for URL: {url}")
+                logging.warning(f"VirusTotal analysis incomplete for URL: {url}")
                 return None
             
             # Get the URL report
