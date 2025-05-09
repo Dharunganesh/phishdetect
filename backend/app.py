@@ -106,8 +106,9 @@ app.secret_key = os.environ.get("SESSION_SECRET", "phishing_detector_secret")
 # Enable CORS for the Chrome extension with proper method handling
 CORS(app, resources={
     r"/*": {  # Allow CORS for all routes
-        "origins": ["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*", "https://*"],
-        "methods": ["GET", "POST", "OPTIONS"],
+        "origins": ["*"],  # Allow all origins
+        "methods": ["GET", "POST", "OPTIONS", "HEAD"],
+        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
         "expose_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True,
