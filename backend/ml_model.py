@@ -56,10 +56,16 @@ class PhishingURLPredictor:
         # Security indicators
         features['has_https'] = int(parsed_url.scheme == 'https')
         features['has_ip_address'] = int(bool(re.search(r'\d+\.\d+\.\d+\.\d+', url)))
+        # Enhanced suspicious word detection
         features['has_suspicious_words'] = int(
-            bool(re.search(r'(login|signin|verify|secure|account|password|bank|paypal|ebay|update)', 
+            bool(re.search(r'(login|signin|verify|secure|account|password|bank|paypal|ebay|update|confirm|verification|suspended|unusual|activity|security|limited|access)', 
                           url.lower()))
         )
+        
+        # Add more sophisticated features
+        features['has_mixed_hostname'] = int(bool(re.search(r'[A-Z]', extract_result.domain)))
+        features['hostname_length'] = len(extract_result.domain + extract_result.suffix)
+        features['has_random_chars'] = int(bool(re.search(r'[0-9a-f]{8}', url.lower())))
         
         # Convert features to a list in a consistent order
         feature_vector = [
