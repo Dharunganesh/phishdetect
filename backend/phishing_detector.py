@@ -124,8 +124,9 @@ def register_routes(app):
         vt_total = None
         
         if vt_result:
-            vt_positives = vt_result.get('malicious', 0) + vt_result.get('suspicious', 0)
+            vt_positives = vt_result.get('malicious', 0)
             vt_total = vt_result.get('total', 0)
+            logging.info(f"Processing VirusTotal results - Positives: {vt_positives}, Total: {vt_total}")
             
             # Adjust confidence based on VirusTotal results if available
             if vt_total > 0:
