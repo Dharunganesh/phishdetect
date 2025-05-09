@@ -6,7 +6,7 @@ import time
 class VirusTotalAPI:
     def __init__(self):
         # Get API key from environment variable
-        self.api_key = os.getenv("VIRUSTOTAL_API_KEY", "2b0576adebba12a50a741aa50d436e37232410d10d9d38936da077b74d03c8e7")
+        self.api_key = os.getenv("VIRUSTOTAL_API_KEY", "")
         self.base_url = "https://www.virustotal.com/api/v3"
         self.rate_limit_per_minute = 4  # Free tier limit
         self.last_request_time = 0
@@ -20,28 +20,52 @@ class VirusTotalAPI:
             logging.warning("VirusTotal API key not set, skipping check")
             return None
             
-        # Rate limiting
-        self._respect_rate_limit()
-        
         try:
             # First, submit the URL for analysis
+            logging.info(f"Submitting URL to VirusTotal: {url}")
             analysis_id = self._submit_url(url)
             if not analysis_id:
+                logging.error("Failed to get analysis ID from VirusTotal")
                 return None
                 
-            # Wait for analysis to complete (with timeout)
-            timeout = 15  # seconds - reduced for faster response
+            logging.info(f"Got analysis ID: {analysis_id}")
+            
+            # Wait longer for initial analysis
+            time.sleep(3)
+            
+            # Try to get analysis result with exponential backoff
+            max_attempts = 3
+            timeout = 20
             start_time = time.time()
             analysis_result = None
             
-            while time.time() - start_time < timeout:
-                analysis_result = self._get_analysis_result(analysis_id)
-                if analysis_result and analysis_result.get('status') == 'completed':
+            for attempt in range(max_attempts):
+                if time.time() - start_time > timeout:
+                    logging.warning("VirusTotal analysis timeout exceeded")
                     break
-                time.sleep(1)  # Reduced wait time between checks
-            
+                    
+                self._respect_rate_limit()
+                analysis_result = self._get_analysis_result(analysis_id)
+                
+                if analysis_result:
+                    status = analysis_result.get('status')
+                    logging.info(f"Analysis status: {status}")
+                    
+                    if status == 'completed':
+                        break
+                    elif status in ['queued', 'in-progress']:
+                        wait_time = min(2 ** attempt, 5)
+                        logging.info(f"Waiting {wait_time}s before next attempt")
+                        time.sleep(wait_time)
+                    else:
+                        logging.warning(f"Unexpected status: {status}")
+                        break
+                else:
+                    logging.warning("No analysis result returned")
+                    break
+                    
             if not analysis_result or analysis_result.get('status') != 'completed':
-                logging.warning(f"VirusTotal analysis timed out for URL: {url}")
+                logging.warning(f"Failed to get complete analysis for URL: {url}")
                 return None
             
             # Get the URL report
@@ -110,14 +134,16 @@ class VirusTotalAPI:
             attributes = data.get('attributes', {})
             stats = attributes.get('last_analysis_stats', {})
             
-            total = sum(stats.values())
-            positives = stats.get('malicious', 0) + stats.get('suspicious', 0)
             return {
-                'positives': positives,
-                'total': total,
-                'stats': stats,
+                'harmless': stats.get('harmless', 0),
+                'malicious': stats.get('malicious', 0),
+                'suspicious': stats.get('suspicious', 0),
+                'undetected': stats.get('undetected', 0),
+                'timeout': stats.get('timeout', 0),
+                'total': sum(stats.values()),
                 'scan_date': attributes.get('last_analysis_date'),
-                'reputation': attributes.get('reputation', 0)
+                'reputation': attributes.get('reputation', 0),
+                'categories': attributes.get('categories', {})
             }
         else:
             logging.error(f"Error getting URL report from VirusTotal: {response.status_code}, {response.text}")
