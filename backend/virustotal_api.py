@@ -36,27 +36,12 @@ class VirusTotalAPI:
             
             while time.time() - start_time < timeout:
                 analysis_result = self._get_analysis_result(analysis_id)
-                if not analysis_result:
-                    time.sleep(2)
-                    continue
-                    
-                status = analysis_result.get('status', '')
-                logging.info(f"VirusTotal analysis status: {status}")
-                
-                if status == 'completed':
+                if analysis_result and analysis_result.get('status') == 'completed':
                     break
-                elif status in ['queued', 'running']:
-                    time.sleep(2)
-                else:
-                    logging.warning(f"Unexpected VirusTotal status: {status}")
-                    time.sleep(1)
+                time.sleep(1)  # Reduced wait time between checks
             
-            if not analysis_result:
-                logging.warning("Failed to get analysis result")
-                return None
-                
-            if analysis_result.get('status') != 'completed':
-                logging.warning(f"VirusTotal analysis not completed for URL: {url}, status: {analysis_result.get('status')}")
+            if not analysis_result or analysis_result.get('status') != 'completed':
+                logging.warning(f"VirusTotal analysis timed out for URL: {url}")
                 return None
             
             # Get the URL report
@@ -89,7 +74,7 @@ class VirusTotalAPI:
         
         response = requests.post(endpoint, headers=headers, data=data)
         
-        if response.status_code in [200, 201, 202]:
+        if response.status_code == 200:
             result = response.json()
             return result.get('data', {}).get('id')
         else:
@@ -125,13 +110,18 @@ class VirusTotalAPI:
             attributes = data.get('attributes', {})
             stats = attributes.get('last_analysis_stats', {})
             
+            total = sum(stats.values()) if stats else 0
+            malicious = stats.get('malicious', 0) + stats.get('suspicious', 0)
+            
+            logging.info(f"VirusTotal results - Malicious: {malicious}, Total: {total}")
+            
             return {
                 'harmless': stats.get('harmless', 0),
-                'malicious': stats.get('malicious', 0),
+                'malicious': malicious,
                 'suspicious': stats.get('suspicious', 0),
                 'undetected': stats.get('undetected', 0),
                 'timeout': stats.get('timeout', 0),
-                'total': sum(stats.values()),
+                'total': total,
                 'scan_date': attributes.get('last_analysis_date'),
                 'reputation': attributes.get('reputation', 0),
                 'categories': attributes.get('categories', {})
