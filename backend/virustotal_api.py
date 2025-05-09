@@ -17,7 +17,7 @@ class VirusTotalAPI:
         Returns: dict with detection results or None if error
         """
         if not self.api_key:
-            logging.warning("VirusTotal API key not set, skipping check")
+            logging.error("VirusTotal API key not set! Please configure VIRUSTOTAL_API_KEY in environment variables")
             return None
             
         # Rate limiting
@@ -27,29 +27,28 @@ class VirusTotalAPI:
             # First, submit the URL for analysis
             analysis_id = self._submit_url(url)
             if not analysis_id:
+                logging.error("Failed to get analysis ID from VirusTotal")
                 return None
                 
             # Wait for analysis to complete (with timeout)
-            timeout = 45  # seconds - increased for better completion rate
+            timeout = 60  # seconds - increased for better completion rate
             start_time = time.time()
             analysis_result = None
-            retry_count = 0
             
             while time.time() - start_time < timeout:
                 analysis_result = self._get_analysis_result(analysis_id)
                 if analysis_result:
-                    status = analysis_result.get('status', '')
+                    status = analysis_result.get('status')
+                    logging.info(f"VirusTotal analysis status: {status}")
                     if status == 'completed':
                         break
-                    elif status == 'queued' and retry_count < 3:
-                        retry_count += 1
+                    elif status == 'queued':
                         time.sleep(5)  # Longer wait for queued status
-                        continue
-                    logging.info(f"Analysis status: {status}")
-                time.sleep(2)  # Increased wait time between checks
+                    else:
+                        time.sleep(2)  # Normal wait for other statuses
             
             if not analysis_result or analysis_result.get('status') != 'completed':
-                logging.warning(f"VirusTotal analysis incomplete for URL: {url}")
+                logging.warning(f"VirusTotal analysis timed out for URL: {url}")
                 return None
             
             # Get the URL report
