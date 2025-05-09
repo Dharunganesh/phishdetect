@@ -30,15 +30,17 @@ class VirusTotalAPI:
                 return None
                 
             # Wait for analysis to complete (with timeout)
-            timeout = 15  # seconds - reduced for faster response
+            timeout = 30  # seconds - increased for better completion rate
             start_time = time.time()
             analysis_result = None
             
             while time.time() - start_time < timeout:
                 analysis_result = self._get_analysis_result(analysis_id)
-                if analysis_result and analysis_result.get('status') == 'completed':
-                    break
-                time.sleep(1)  # Reduced wait time between checks
+                if analysis_result:
+                    if analysis_result.get('status') == 'completed':
+                        break
+                    logging.info(f"Analysis status: {analysis_result.get('status')}")
+                time.sleep(2)  # Increased wait time between checks to respect rate limits
             
             if not analysis_result or analysis_result.get('status') != 'completed':
                 logging.warning(f"VirusTotal analysis timed out for URL: {url}")
