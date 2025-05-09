@@ -6,7 +6,7 @@ import time
 class VirusTotalAPI:
     def __init__(self):
         # Get API key from environment variable
-        self.api_key = os.getenv("VIRUSTOTAL_API_KEY", "")
+        self.api_key = os.getenv("VIRUSTOTAL_API_KEY", "2b0576adebba12a50a741aa50d436e37232410d10d9d38936da077b74d03c8e7")
         self.base_url = "https://www.virustotal.com/api/v3"
         self.rate_limit_per_minute = 4  # Free tier limit
         self.last_request_time = 0
