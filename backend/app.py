@@ -45,6 +45,8 @@ logger.info(f"All environment variables: {dict(os.environ)}")
 # Try to find database URL in different possible locations
 database_url = None
 possible_db_vars = [
+    'NEON_DB',  # Check Neon DB URL first
+    'POSTGRES_DB',  # Then check POSTGRES_DB
     'DATABASE_URL',
     'RAILWAY_DATABASE_URL',
     'POSTGRES_URL',
@@ -59,31 +61,9 @@ for var in possible_db_vars:
         break
 
 if not database_url:
-    # Try to construct from individual components
-    db_components = {
-        'user': os.environ.get('PGUSER', 'postgres'),
-        'password': os.environ.get('PGPASSWORD'),
-        'host': os.environ.get('PGHOST'),
-        'port': os.environ.get('PGPORT', '5432'),
-        'database': os.environ.get('PGDATABASE', 'railway')
-    }
-    
-    logger.info(f"Database components found: {db_components}")
-    
-    # Check if we have the minimum required components
-    if db_components['host'] and db_components['password']:
-        database_url = f"postgresql://{db_components['user']}:{db_components['password']}@{db_components['host']}:{db_components['port']}/{db_components['database']}"
-        logger.info("Constructed DATABASE_URL from individual components")
-    else:
-        # Try to get the database URL from Railway's internal DNS
-        if 'RAILWAY_PRIVATE_DOMAIN' in os.environ:
-            host = os.environ['RAILWAY_PRIVATE_DOMAIN'].replace('web.', 'postgres.')
-            database_url = f"postgresql://postgres:postgres@{host}:5432/railway"
-            logger.info("Constructed DATABASE_URL from Railway private domain")
-        else:
-            logger.error("No database URL found in any environment variables")
-            logger.error("Please ensure you have a PostgreSQL database service linked to your application")
-            sys.exit(1)
+    logger.error("No database URL found in any environment variables")
+    logger.error("Please ensure you have a PostgreSQL database service linked to your application")
+    sys.exit(1)
 
 # If the URL starts with postgres://, change it to postgresql://
 if database_url.startswith('postgres://'):
@@ -106,9 +86,8 @@ app.secret_key = os.environ.get("SESSION_SECRET", "phishing_detector_secret")
 # Enable CORS for the Chrome extension with proper method handling
 CORS(app, resources={
     r"/*": {  # Allow CORS for all routes
-        "origins": ["*"],  # Allow all origins
-        "methods": ["GET", "POST", "OPTIONS", "HEAD"],
-        "allow_headers": ["Content-Type", "Authorization", "X-Requested-With", "Accept", "Origin"],
+        "origins": ["chrome-extension://*", "http://localhost:*", "http://127.0.0.1:*", "https://*"],
+        "methods": ["GET", "POST", "OPTIONS"],
         "allow_headers": ["Content-Type", "Authorization", "Accept", "Origin", "X-Requested-With"],
         "expose_headers": ["Content-Type", "Authorization"],
         "supports_credentials": True,
